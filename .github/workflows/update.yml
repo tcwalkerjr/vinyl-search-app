@@ -8,9 +8,9 @@ on:
 jobs:
   update:
     runs-on: ubuntu-latest
-      env:
-        DISCOGS_USER: ${{ secrets.DISCOGS_USER }}
-        DISCOGS_TOKEN: ${{ secrets.DISCOGS_TOKEN }}
+    env:
+      DISCOGS_USER: ${{ secrets.DISCOGS_USER }}
+      DISCOGS_TOKEN: ${{ secrets.DISCOGS_TOKEN }}
     steps:
       - uses: actions/checkout@v3
       - name: Set up Python
