@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       DISCOGS_TOKEN: ${{ secrets.DISCOGS_TOKEN }}
-      DISCOGS_USERNAME: your_discogs_username
+      DISCOGS_USERNAME: shoresider
     steps:
       - uses: actions/checkout@v3
       - name: Set up Python
