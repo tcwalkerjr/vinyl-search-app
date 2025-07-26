@@ -56,9 +56,16 @@ def enrich_collection(username):
     return pd.DataFrame(records)
 
 def merge_new_tracks(existing_df, new_df):
+    # Ensure all expected columns are present in existing_df
+    for col in ["release_id", "Track Title"]:
+        if col not in existing_df.columns:
+            existing_df[col] = ""
+
     existing_keys = set((row["release_id"], row["Track Title"]) for _, row in existing_df.iterrows())
     new_rows = new_df[~new_df.apply(lambda row: (row["release_id"], row["Track Title"]) in existing_keys, axis=1)]
     return pd.concat([existing_df, new_rows], ignore_index=True)
+
+print("Columns in existing data:", existing_df.columns.tolist())
 
 def main():
     username = os.getenv("DISCOGS_USERNAME")
