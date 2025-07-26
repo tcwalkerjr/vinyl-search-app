@@ -13,7 +13,6 @@ HEADERS = {
     "User-Agent": "vinyl-search-app/1.0"
 }
 
-
 def fetch_collection():
     releases = []
     page = 1
@@ -27,7 +26,7 @@ def fetch_collection():
             formats = item.get("basic_information", {}).get("formats", [])
             if not any("12\"" in desc for fmt in formats for desc in fmt.get("descriptions", [])):
                 continue  # Skip non-12" records
-            
+
             basic_info = item["basic_information"]
             track = {
                 "release_id": basic_info.get("id"),
@@ -45,12 +44,15 @@ def fetch_collection():
 
     return pd.DataFrame(releases)
 
-
 def merge_new_tracks(existing_df, new_df):
-    existing_keys = set(zip(existing_df["release_id"], existing_df["Album Title"]))
-    new_df = new_df[~new_df.apply(lambda row: (row["release_id"], row["Album Title"]) in existing_keys, axis=1)]
-    return pd.concat([existing_df, new_df], ignore_index=True)
+    if "release_id" in existing_df.columns:
+        existing_keys = set(zip(existing_df["release_id"], existing_df["Album Title"]))
+        new_df = new_df[~new_df.apply(lambda row: (row["release_id"], row["Album Title"]) in existing_keys, axis=1)]
+    else:
+        existing_keys = set(existing_df["Album Title"])
+        new_df = new_df[~new_df["Album Title"].isin(existing_keys)]
 
+    return pd.concat([existing_df, new_df], ignore_index=True)
 
 def main():
     if os.path.exists(EXISTING_CSV_PATH):
@@ -61,7 +63,6 @@ def main():
     new_data = fetch_collection()
     merged = merge_new_tracks(existing_data, new_data)
     merged.to_csv(EXISTING_CSV_PATH, index=False)
-
 
 if __name__ == "__main__":
     main()
