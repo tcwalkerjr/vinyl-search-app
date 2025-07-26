@@ -22,8 +22,12 @@ jobs:
           pip install -r requirements.txt
       - name: Run update script
         run: python update_collection.py
-      - name: Commit and push changes
+      - name: Commit changes
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          commit_message: "🔄 Auto-update vinyl collection"
-          file_pattern: "merged_12inch_records_only.csv"
+          commit_message: 🔄 Auto-update vinyl collection
+          file_pattern: merged_12inch_records_only.csv
+          commit_user_name: github-actions[bot]
+          commit_user_email: 41898282+github-actions[bot]@users.noreply.github.com
+          repository: tcwalkerjr/vinyl-search-app
+          token: ${{ secrets.PAT_TOKEN }}
