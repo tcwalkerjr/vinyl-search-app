@@ -30,7 +30,10 @@ def extract_record_info(item):
     basic = item["basic_information"]
     release_id = basic["id"]
     formats = basic.get("formats", [])
-    if not any("12"" in fmt.get("descriptions", []) for fmt in formats):
+    formats = release.get("formats", [])
+    if not any("12" in fmt.get("descriptions", []) for fmt in formats):
+        continue  # Skip non-12" records
+
         return None
     title = basic.get("title", "")
     artists = ", ".join(a.get("name", "") for a in basic.get("artists", []))
