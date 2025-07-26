@@ -1,0 +1,38 @@
+name: Weekly Discogs Sync
+
+on:
+  schedule:
+    - cron: '0 8 * * 1'  # Every Monday at 8 AM UTC
+  workflow_dispatch:
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: 3.10
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run update script
+        env:
+          DISCOGS_USER_TOKEN: ${{ secrets.DISCOGS_USER_TOKEN }}
+          DISCOGS_USERNAME: ${{ secrets.DISCOGS_USERNAME }}
+        run: python update_collection.py
+
+      - name: Commit updated file
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add merged_12inch_records_only.csv
+          git commit -m "Auto-update from Discogs" || echo "No changes"
+          git push
