@@ -65,7 +65,7 @@ def merge_new_tracks(existing_df, new_df):
     new_rows = new_df[~new_df.apply(lambda row: (row["release_id"], row["Track Title"]) in existing_keys, axis=1)]
     return pd.concat([existing_df, new_rows], ignore_index=True)
 
-print("Columns in existing data:", existing_df.columns.tolist())
+print("Columns in existing data:", existing_data.columns.tolist())
 
 def main():
     username = os.getenv("DISCOGS_USERNAME")
