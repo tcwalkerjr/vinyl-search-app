@@ -67,6 +67,10 @@ def main():
     if "Track Title" in merged.columns:
         merged = merged[merged["Track Title"].str.lower() != "none"]
 
+    # Remove rows where Track Title is "none" (case-insensitive)
+    if "Track Title" in merged.columns:
+        merged = merged[merged["Track Title"].str.lower() != "none"]
+
     merged.to_csv(EXISTING_CSV_PATH, index=False)
 
 if __name__ == "__main__":
