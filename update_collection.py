@@ -27,13 +27,18 @@ def fetch_release_tracks(release_id):
         title = track.get("title", "").strip()
         if not title or title.lower() == "none":
             continue
+                # Gather producer and remixer credits if available
+        extra_artists = track.get("extraartists", [])
+        producers = [a.get("name", "") for a in extra_artists if a.get("role", "").lower() == "producer"]
+        remixers = [a.get("name", "") for a in extra_artists if a.get("role", "").lower() == "remixer"]
+
         results.append({
             "release_id": release_id,
             "Track Title": title,
             "Track Position": track.get("position", ""),
             "Duration": track.get("duration", ""),
-            "Producer": "",
-            "Remixer": "",
+            "Producer": ", ".join(producers),
+            "Remixer": ", ".join(remixers),
             "Artist": ", ".join(a.get("name", "") for a in data.get("artists", [])),
             "Album Title": data.get("title", ""),
             "Label": ", ".join(l.get("name", "") for l in data.get("labels", [])),
