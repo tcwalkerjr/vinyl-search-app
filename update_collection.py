@@ -1,5 +1,3 @@
-name: Update Discogs Collection
-
 on:
   schedule:
     - cron: '0 3 * * 1'  # Runs every Monday at 03:00 UTC
