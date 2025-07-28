@@ -22,6 +22,7 @@ def fetch_release_tracks(release_id):
         return []
     data = response.json()
     tracklist = data.get("tracklist", [])
+    release_producers = [a.get("name", "") for a in data.get("extraartists", []) if a.get("role", "").lower() == "producer"]
     results = []
     for track in tracklist:
         title = track.get("title", "").strip()
@@ -29,8 +30,19 @@ def fetch_release_tracks(release_id):
             continue
                 # Gather producer and remixer credits if available
         extra_artists = track.get("extraartists", [])
-        producers = [a.get("name", "") for a in extra_artists if a.get("role", "").lower() == "producer"]
-        remixers = [a.get("name", "") for a in extra_artists if a.get("role", "").lower() == "remixer"]
+        remixers = []
+        producers = []  # Track-level producers, fallback to release-level if empty
+        for artist in extra_artists:
+            role = artist.get("role", "").lower()
+            name = artist.get("name", "")
+            if "remix" in role:
+                remixers.append(name)
+            elif role == "producer" and name not in remixers:
+                producers.append(name)
+
+                # Fallback: use release-level producer if none at track level
+        if not producers:
+            producers = release_producers
 
         results.append({
             "release_id": release_id,
@@ -73,13 +85,7 @@ def fetch_collection():
 
 
 def merge_new_tracks(existing_df, new_df):
-    if "release_id" in existing_df.columns and "Track Title" in existing_df.columns:
-        existing_keys = set(zip(existing_df["release_id"], existing_df["Track Title"]))
-        new_df = new_df[~new_df.apply(lambda row: (row["release_id"], row["Track Title"]) in existing_keys, axis=1)]
-    else:
-        existing_keys = set(existing_df.get("Album Title", []))
-        new_df = new_df[~new_df["Album Title"].isin(existing_keys)]
-
+    # Temporarily disable deduplication
     return pd.concat([existing_df, new_df], ignore_index=True)
 
 
@@ -99,6 +105,11 @@ def main():
         merged = merged[merged["Track Title"].notnull() & (merged["Track Title"].str.lower() != "none") & (merged["Track Title"].str.strip() != "")]
 
     merged.to_csv(EXISTING_CSV_PATH, index=False)
+
+
+if __name__ == "__main__":
+    main()
+
 
 
 if __name__ == "__main__":
