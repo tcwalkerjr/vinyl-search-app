@@ -85,7 +85,9 @@ def fetch_collection():
 
 
 def merge_new_tracks(existing_df, new_df):
-    # Temporarily disable deduplication
+    # Overwrite existing entries with same release_id
+    if "release_id" in existing_df.columns:
+        existing_df = existing_df[~existing_df["release_id"].isin(new_df["release_id"])]
     return pd.concat([existing_df, new_df], ignore_index=True)
 
 
@@ -108,9 +110,6 @@ def main():
     print(f"Final merged row count: {len(merged)}")
     merged.to_csv(EXISTING_CSV_PATH, index=False)
 
-
-if __name__ == "__main__":
-    main()
 
 if __name__ == "__main__":
     main()
