@@ -54,7 +54,7 @@ def fetch_collection():
 
         for item in data["releases"]:
             formats = item.get("basic_information", {}).get("formats", [])
-            if not any(("12\"" in desc or "Vinyl" in desc) for fmt in formats for desc in fmt.get("descriptions", [])):
+            if not any("Vinyl" in desc for fmt in formats for desc in fmt.get("descriptions", [])):
                 continue  # Skip non-12" records
             release_id = item.get("basic_information", {}).get("id")
             track_rows = fetch_release_tracks(release_id)
