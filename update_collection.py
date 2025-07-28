@@ -22,7 +22,9 @@ def fetch_release_tracks(release_id):
         return []
     data = response.json()
     tracklist = data.get("tracklist", [])
-    release_producers = [a.get("name", "") for a in data.get("extraartists", []) if a.get("role", "").lower() == "producer"]
+    release_extraartists = data.get("extraartists", [])
+    release_producers = [a.get("name", "") for a in release_extraartists if a.get("role", "").lower() == "producer"]
+    release_remixers = [a.get("name", "") for a in release_extraartists if "remix" in a.get("role", "").lower()]) if a.get("role", "").lower() == "producer"]
     results = []
     for track in tracklist:
         title = track.get("title", "").strip()
@@ -41,8 +43,10 @@ def fetch_release_tracks(release_id):
                 producers.append(name)
 
                 # Fallback: use release-level producer if none at track level
-        if not producers:
+                if not producers:
             producers = release_producers
+        if not remixers:
+            remixers = release_remixers
 
         results.append({
             "release_id": release_id,
