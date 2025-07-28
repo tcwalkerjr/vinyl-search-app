@@ -26,7 +26,7 @@ def fetch_release_tracks(release_id):
     release_producers = [a.get("name", "") for a in release_extraartists if a.get("role", "").lower() == "producer"]
     release_remixers = [a.get("name", "") for a in release_extraartists if "remix" in a.get("role", "").lower()]
     results = []
-        for track in tracklist:
+    for track in tracklist:
         title = track.get("title", "").strip()
         if not title or title.lower() == "none":
             continue
@@ -42,7 +42,7 @@ def fetch_release_tracks(release_id):
             elif role == "producer" and name not in remixers:
                 producers.append(name)
 
-                # Fallback: use release-level producer if none at track level
+        # Fallback: use release-level producer if none at track level
         if not producers:
             producers = release_producers
         if not remixers:
