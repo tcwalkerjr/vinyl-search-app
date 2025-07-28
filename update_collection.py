@@ -85,9 +85,7 @@ def fetch_collection():
 
 
 def merge_new_tracks(existing_df, new_df):
-    # Clean out rows with blank or null release_id
-    if "release_id" in existing_df.columns:
-        existing_df = existing_df[existing_df["release_id"].notnull() & (existing_df["release_id"].astype(str).str.strip() != "")]
+    
     if "release_id" in existing_df.columns and "release_id" in new_df.columns:
         existing_df = existing_df[~existing_df["release_id"].isin(new_df["release_id"])]
     return pd.concat([existing_df, new_df], ignore_index=True)
