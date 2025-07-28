@@ -104,13 +104,13 @@ def main():
     if "Track Title" in merged.columns:
         merged = merged[merged["Track Title"].notnull() & (merged["Track Title"].str.lower() != "none") & (merged["Track Title"].str.strip() != "")]
 
+    print(f"Fetched {len(new_data)} new rows")
+    print(f"Final merged row count: {len(merged)}")
     merged.to_csv(EXISTING_CSV_PATH, index=False)
 
 
 if __name__ == "__main__":
     main()
-
-
 
 if __name__ == "__main__":
     main()
