@@ -1,6 +1,7 @@
 import requests
 import pandas as pd
 import os
+import time
 from datetime import datetime
 
 DISCOGS_USER = os.getenv("DISCOGS_USER")
@@ -16,6 +17,7 @@ HEADERS = {
 def fetch_release_tracks(release_id):
     url = f"https://api.discogs.com/releases/{release_id}"
     response = requests.get(url, headers=HEADERS, params={"token": DISCOGS_TOKEN})
+time.sleep(1)
     if response.status_code != 200:
         return []
     data = response.json()
@@ -46,6 +48,7 @@ def fetch_collection():
     page = 1
     while True:
         response = requests.get(BASE_URL, headers=HEADERS, params={"page": page, "token": DISCOGS_TOKEN})
+time.sleep(1)
         response.raise_for_status()
         data = response.json()
 
