@@ -24,7 +24,7 @@ def fetch_release_tracks(release_id):
     tracklist = data.get("tracklist", [])
     release_extraartists = data.get("extraartists", [])
     release_producers = [a.get("name", "") for a in release_extraartists if a.get("role", "").lower() == "producer"]
-    release_remixers = [a.get("name", "") for a in release_extraartists if "remix" in a.get("role", "").lower()] if a.get("role", "").lower() == "producer"]
+    release_remixers = [a.get("name", "") for a in release_extraartists if "remix" in a.get("role", "").lower()]
     results = []
     missing_credits = []
     for track in tracklist:
@@ -66,8 +66,7 @@ def fetch_release_tracks(release_id):
             "Release Date": data.get("year", "")
         })
         if missing_credits:
-        print("
-⚠️ Missing producer and remixer credits for:")
+        print("Missing producer and remixer credits for:")
         for rid, title in missing_credits:
             print(f" - Release ID {rid}, Track: {title}")
 
