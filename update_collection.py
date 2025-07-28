@@ -26,12 +26,11 @@ def fetch_release_tracks(release_id):
     release_producers = [a.get("name", "") for a in release_extraartists if a.get("role", "").lower() == "producer"]
     release_remixers = [a.get("name", "") for a in release_extraartists if "remix" in a.get("role", "").lower()]
     results = []
-    missing_credits = []
-    for track in tracklist:
+        for track in tracklist:
         title = track.get("title", "").strip()
         if not title or title.lower() == "none":
             continue
-                # Gather producer and remixer credits if available
+        # Gather producer and remixer credits if available
         extra_artists = track.get("extraartists", [])
         remixers = []
         producers = []  # Track-level producers, fallback to release-level if empty
@@ -44,14 +43,12 @@ def fetch_release_tracks(release_id):
                 producers.append(name)
 
                 # Fallback: use release-level producer if none at track level
-                if not producers:
+        if not producers:
             producers = release_producers
         if not remixers:
             remixers = release_remixers
 
-                if not producers and not remixers:
-            missing_credits.append((release_id, title))
-
+        
         results.append({
             "release_id": release_id,
             "Track Title": title,
@@ -65,11 +62,7 @@ def fetch_release_tracks(release_id):
             "Catalog Number": ", ".join(l.get("catno", "") for l in data.get("labels", [])),
             "Release Date": data.get("year", "")
         })
-        if missing_credits:
-        print("Missing producer and remixer credits for:")
-        for rid, title in missing_credits:
-            print(f" - Release ID {rid}, Track: {title}")
-
+                
     return results
 
 
