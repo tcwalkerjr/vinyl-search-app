@@ -1,6 +1,6 @@
 Artist,Album Title,Track Title,Track Position,Duration,Producer,Remixer,Release Date,Catalog Number,Label,release_id
 Céline Dion,Misled,Misled (Richie Jones Club Mix),A1,7:22,Ric Wake,Richie Jones,1994,46 77451,"550 Music, Epic",101862
-Céline Dion,Misled,Misled (MK History Mix),A2,6:41,Ric Wake,Marc Kinchen; MK,1994,46 77451,"550 Music, Epic",101862
+Céline Dion,Misled,Misled ( History Mix),A2,6:41,Ric Wake,Marc Kinchen; MK,1994,46 77451,"550 Music, Epic",101862
 Céline Dion,Misled,Misled (Album Version),A3,3:30,Ric Wake,,1994,46 77451,"550 Music, Epic",101862
 Céline Dion,Misled,Misled (MK's Redirect Mix),B1,6:57,Ric Wake,Marc Kinchen; MK,1994,46 77451,"550 Music, Epic",101862
 Céline Dion,Misled,Misled (MK Dub),B2,8:56,Ric Wake,Marc Kinchen; MK,1994,46 77451,"550 Music, Epic",101862
@@ -1039,10 +1039,10 @@ M People,One Night In Heaven,One Night In Heaven (M People Master Mix),A2,6:30,,
 M People,One Night In Heaven,One Night In Heaven (The Tunnel Mix),B1,5:03,,David Morales,1994,49 77613,Epic Dance,199120
 M People,One Night In Heaven,One Night In Heaven (Classic Mix),B2,6:35,,David Morales,1994,49 77613,Epic Dance,199120
 M People,One Night In Heaven,One Night In Heaven (Tragedy Dub),B3,6:40,,David Morales,1994,49 77613,Epic Dance,199120
-M People,Excited,Excited (MK Mix),A1,8:32,M People,Marc Kinchen; MK,1994,49 77720,Epic Dance,222985
-M People,Excited,Excited (MK T Mix),A2,8:10,M People,Marc Kinchen; MK,1994,49 77720,Epic Dance,222985
-M People,Excited,Excited (M People Master Mix),B1,5:00,M People,Marc Kinchen; MK,1994,49 77720,Epic Dance,222985
-M People,Excited,Excited (MK Snow-Call Dub),B2,7:33,M People,Marc Kinchen; MK,1994,49 77720,Epic Dance,222985
+M People,Excited,Excited ( Mix),A1,8:32,M People,Marc Kinchen; ,1994,49 77720,Epic Dance,222985
+M People,Excited,Excited ( T Mix),A2,8:10,M People,Marc Kinchen; ,1994,49 77720,Epic Dance,222985
+M People,Excited,Excited (M People Master Mix),B1,5:00,M People,Marc Kinchen; ,1994,49 77720,Epic Dance,222985
+M People,Excited,Excited ( Snow-Call Dub),B2,7:33,M People,Marc Kinchen; ,1994,49 77720,Epic Dance,222985
 M People,Excited,Excited (M People Dub),B3,5:00,M People,M People,1994,49 77720,Epic Dance,222985
 Gloria Estefan,Oye,Oye (Rosabel's Cubarican Club Mix),A1,9:55,"Emilio Estefan, Jr., Randall Barlow, Tony Moran",Rosabel,1998,AED 79030,Epic Dance,761834
 Gloria Estefan,Oye,Oye (Chris The Greek's Caliente Mix),A2,5:11,"Emilio Estefan, Jr., Randall Barlow, Tony Moran",Chris The Greek,1998,AED 79030,Epic Dance,761834
@@ -1803,7 +1803,7 @@ Dannii Minogue,Success,Success (Maurice's Dub),B2,6:05,,"Larry Sturm, Maurice Jo
 Dannii Minogue,Success,Success (Junior's Factory Dub),B3,6:03,,"Dennis Mitchell, Junior Vasquez",1992,"SAV12 54400, SAV12-54400","Savage Records, Savage Records",1872247
 Lonnie Gordon,Bad Mood,Bad Mood (Murk Mix 1),A1,,Black Box,"MURK, Roger Sanchez",1993,7243 8 80696 6 3,SBK Records,193705
 Lonnie Gordon,Bad Mood,Bad Mood (Black Box's Original Album Mix),A2,,Black Box,,1993,7243 8 80696 6 3,SBK Records,193705
-Lonnie Gordon,Bad Mood,Bad Mood (Mk & Masters At Work's Bass Hit),A3,,Black Box,"Marc Kinchen, Masters At Work",1993,7243 8 80696 6 3,SBK Records,193705
+Lonnie Gordon,Bad Mood,Bad Mood ( & Masters At Work's Bass Hit),A3,,Black Box,"Marc Kinchen, Masters At Work",1993,7243 8 80696 6 3,SBK Records,193705
 Lonnie Gordon,Bad Mood,Bad Mood (Roger's Murky Dub),B1,,Black Box,"MURK, Roger Sanchez",1993,7243 8 80696 6 3,SBK Records,193705
 Lonnie Gordon,Bad Mood,Bad Mood (Roger's Nu Solution Vocal),B2,,Black Box,Roger Sanchez,1993,7243 8 80696 6 3,SBK Records,193705
 Lonnie Gordon,Bad Mood,Bad Mood (Roger's Urban Club Mix),B3,,Black Box,Roger Sanchez,1993,7243 8 80696 6 3,SBK Records,193705
@@ -2258,3 +2258,13 @@ Mary J. Blige,Give Me You,Give Me You (Extended Niño Mix),C1,6:39,Manuel Seal,"
 Mary J. Blige,Give Me You,Give Me You (Dub Path),C2,5:21,Manuel Seal,"Boris Dlugosch, Michi Lange",2000,WMCST 40230,MCA Records,417800
 Mary J. Blige,Give Me You,Give Me You (Royal Gardens Discotip Dub),D1,7:32,Manuel Seal,Royal Garden,2000,WMCST 40230,MCA Records,417800
 Mary J. Blige,Give Me You,Give Me You (Niño Radio Mix),D2,3:34,Manuel Seal,"Hiten Bharadia, Niño",2000,WMCST 40230,MCA Records,417800
+The B-52's,Tell It Like It T-I-Is!,Tell It Like It T-I-Is (MK Respect Mix),A1,5:47,Nile Rodgers,MK,1992,0-40594,Reprise Records,207863
+The B-52's,Tell It Like It T-I-Is!,Tell It Like It T-I-Is (Instrumental Respect Mix),A2,5:47,Nile Rodgers,MK,1992,0-40594,Reprise Records,207863
+The B-52's,Tell It Like It T-I-Is!,Tell It Like It T-I-Is (MK Underground Mix),A3,7:27,Nile Rodgers,MK,1992,0-40594,Reprise Records,207863
+The B-52's,Tell It Like It T-I-Is!,Tell It Like It T-I-Is (MK Mix),B1,7:42,Nile Rodgers,MK,1992,0-40594,Reprise Records,207863
+The B-52's,Tell It Like It T-I-Is!,Tell It Like It T-I-Is (MK Dub),B2,6:19,Nile Rodgers,MK,1992,0-40594,Reprise Records,207863
+The B-52's,Tell It Like It T-I-Is!,The World's Green Laughter (Album Version),B3,4:04,Nile Rodgers,,1992,0-40594,Reprise Records,207863
+Kym Sims,A Little Bit More,A Little Bit More (Hurley's Radio Edit),A,4:05,"Steve ""Silk"" Hurley","Steve ""Silk"" Hurley",1992,7567-98528-7,ATCO Records,1897159
+Kym Sims,A Little Bit More,A Little Bit More (Joey's Radio Edit),B,3:47,"Steve ""Silk"" Hurley",Joey Negro,1992,7567-98528-7,ATCO Records,1897159
+Cathy Dennis,Just Another Dream,Just Another Dream,A,3:58,"Dancin' Danny D, Shep Pettibone",,1991,877-544-7,Polydor,1663752
+Cathy Dennis,Just Another Dream,Just Another Dream (Dub),B,4:20,"Dancin' Danny D, Shep Pettibone",,1991,877-544-7,Polydor,1663752
