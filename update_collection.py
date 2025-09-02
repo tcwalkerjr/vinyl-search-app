@@ -22,7 +22,7 @@ def get_cutoff_date(existing_data):
             return latest_date
         except Exception:
             pass
-    return datetime.now() - timedelta(days=7)
+    return datetime.now() - timedelta(days=25)
 
 
 def fetch_release_tracks(release_id):
