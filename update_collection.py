@@ -2,7 +2,7 @@ import requests
 import pandas as pd
 import os
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 
 DISCOGS_USER = os.getenv("DISCOGS_USER")
 DISCOGS_TOKEN = os.getenv("DISCOGS_TOKEN")
@@ -13,8 +13,22 @@ HEADERS = {
     "User-Agent": "vinyl-search-app/1.0"
 }
 
-# Temporary cutoff to catch missed additions
+# For now, check back to August 14, 2025
 CUTOFF_DATE = datetime.strptime("2025-08-14", "%Y-%m-%d")
+
+
+def is_vinyl_format(formats):
+    """Return True if any format looks like Vinyl or 12\"."""
+    for fmt in formats:
+        name = fmt.get("name", "").lower()
+        descriptions = [d.lower() for d in fmt.get("descriptions", [])]
+        if "vinyl" in name:
+            return True
+        if any("vinyl" in d for d in descriptions):
+            return True
+        if any('12"' in d or "12”" in d for d in descriptions):  # cover both quotes
+            return True
+    return False
 
 
 def fetch_release_tracks(release_id):
@@ -35,9 +49,9 @@ def fetch_release_tracks(release_id):
         title = track.get("title", "").strip()
         if not title or title.lower() == "none":
             continue
-
         extra_artists = track.get("extraartists", [])
-        remixers, producers = [], []
+        remixers = []
+        producers = []
         for artist in extra_artists:
             role = artist.get("role", "").lower()
             name = artist.get("name", "")
@@ -81,8 +95,6 @@ def fetch_new_releases(existing_ids):
             if not date_added:
                 continue
             added_date = datetime.strptime(date_added[:10], "%Y-%m-%d")
-
-            # Stop if we've reached older releases
             if added_date < CUTOFF_DATE:
                 return releases
 
@@ -90,17 +102,12 @@ def fetch_new_releases(existing_ids):
             if release_id in existing_ids:
                 continue
 
-            # ✅ Improved vinyl / 12" filter
             formats = item.get("basic_information", {}).get("formats", [])
-            if not any(
-                fmt.get("name", "").lower() == "vinyl" or
-                any("vinyl" in desc.lower() or '12"' in desc for desc in fmt.get("descriptions", []))
-                for fmt in formats
-            ):
-                print(f"   ⏩ Skipped (not vinyl) – {item['basic_information'].get('title')} formats: {formats}")
+            if not is_vinyl_format(formats):
+                print(f"⏭️ Skipping {item['basic_information'].get('title')} ({release_id}), not vinyl/12\"")
                 continue
 
-            print(f"   ✅ Adding {item['basic_information'].get('title')} ({release_id}), added {added_date.date()}")
+            print(f"✅ Adding {item['basic_information'].get('title')} ({release_id}), added {added_date.date()}")
             track_rows = fetch_release_tracks(release_id)
             releases.extend(track_rows)
 
@@ -116,7 +123,8 @@ def main():
     else:
         existing_data = pd.DataFrame(columns=[
             "release_id", "Artist", "Album Title", "Label", "Catalog Number",
-            "Release Date", "Track Title", "Track Position", "Duration", "Producer", "Remixer"])
+            "Release Date", "Track Title", "Track Position", "Duration", "Producer", "Remixer"
+        ])
 
     existing_ids = set(existing_data["release_id"].dropna().astype(int).tolist())
     new_rows = fetch_new_releases(existing_ids)
