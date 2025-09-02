@@ -94,9 +94,9 @@ def fetch_new_releases(existing_ids):
             date_added = item.get("date_added")
             if not date_added:
                 continue
-            added_date = datetime.strptime(date_added[:10], "%Y-%m-%d")
+            added_date = datetime.strptime(date_added[:25], "%Y-%m-%d")
             if added_date < CUTOFF_DATE:
-                return releases
+                continue
 
             release_id = item.get("basic_information", {}).get("id")
             if release_id in existing_ids:
