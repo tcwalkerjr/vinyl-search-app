@@ -13,8 +13,8 @@ HEADERS = {
     "User-Agent": "vinyl-search-app/1.0"
 }
 
-# For now, check back to August 14, 2025
-CUTOFF_DATE = datetime.strptime("2025-08-14", "%Y-%m-%d")
+# ✅ Always look back 7 days from "now"
+CUTOFF_DATE = datetime.utcnow() - timedelta(days=7)
 
 
 def is_vinyl_format(formats):
