@@ -13,7 +13,7 @@ HEADERS = {
     "User-Agent": "vinyl-search-app/1.0"
 }
 
-# Hard cutoff for testing (we'll later make this dynamic: today - 7 days)
+# Temporary cutoff to catch missed additions
 CUTOFF_DATE = datetime.strptime("2025-08-14", "%Y-%m-%d")
 
 
@@ -24,18 +24,20 @@ def fetch_release_tracks(release_id):
     if response.status_code != 200:
         return []
     data = response.json()
+
     tracklist = data.get("tracklist", [])
     release_extraartists = data.get("extraartists", [])
     release_producers = [a.get("name", "") for a in release_extraartists if a.get("role", "").lower() == "producer"]
     release_remixers = [a.get("name", "") for a in release_extraartists if "remix" in a.get("role", "").lower()]
+
     results = []
     for track in tracklist:
         title = track.get("title", "").strip()
         if not title or title.lower() == "none":
             continue
+
         extra_artists = track.get("extraartists", [])
-        remixers = []
-        producers = []
+        remixers, producers = [], []
         for artist in extra_artists:
             role = artist.get("role", "").lower()
             name = artist.get("name", "")
@@ -50,7 +52,7 @@ def fetch_release_tracks(release_id):
             remixers = release_remixers
 
         results.append({
-            "release_id": str(release_id),
+            "release_id": release_id,
             "Track Title": title,
             "Track Position": track.get("position", ""),
             "Duration": track.get("duration", ""),
@@ -78,29 +80,29 @@ def fetch_new_releases(existing_ids):
             date_added = item.get("date_added")
             if not date_added:
                 continue
-
             added_date = datetime.strptime(date_added[:10], "%Y-%m-%d")
-            release_id = str(item.get("basic_information", {}).get("id"))
-            title = item.get("basic_information", {}).get("title", "Unknown Title")
 
-            print(f"🔎 Checking {title} ({release_id}) added {added_date.date()}")
-
+            # Stop if we've reached older releases
             if added_date < CUTOFF_DATE:
-                print(f"   ⏩ Skipped (added before cutoff {CUTOFF_DATE.date()})")
-                continue  # FIX: don't stop the loop, just skip
+                return releases
 
+            release_id = item.get("basic_information", {}).get("id")
             if release_id in existing_ids:
-                print("   ⏩ Skipped (already in CSV)")
                 continue
 
+            # ✅ Improved vinyl / 12" filter
             formats = item.get("basic_information", {}).get("formats", [])
-            if not any("Vinyl" in desc for fmt in formats for desc in fmt.get("descriptions", [])):
-                print("   ⏩ Skipped (not vinyl)")
+            if not any(
+                fmt.get("name", "").lower() == "vinyl" or
+                any("vinyl" in desc.lower() or '12"' in desc for desc in fmt.get("descriptions", []))
+                for fmt in formats
+            ):
+                print(f"   ⏩ Skipped (not vinyl) – {item['basic_information'].get('title')} formats: {formats}")
                 continue
 
+            print(f"   ✅ Adding {item['basic_information'].get('title')} ({release_id}), added {added_date.date()}")
             track_rows = fetch_release_tracks(release_id)
             releases.extend(track_rows)
-            print(f"   ✅ Added {len(track_rows)} tracks")
 
         if page >= data["pagination"]["pages"]:
             break
@@ -116,7 +118,7 @@ def main():
             "release_id", "Artist", "Album Title", "Label", "Catalog Number",
             "Release Date", "Track Title", "Track Position", "Duration", "Producer", "Remixer"])
 
-    existing_ids = set(existing_data["release_id"].dropna().astype(str).tolist())
+    existing_ids = set(existing_data["release_id"].dropna().astype(int).tolist())
     new_rows = fetch_new_releases(existing_ids)
 
     if not new_rows:
