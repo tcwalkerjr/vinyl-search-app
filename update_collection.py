@@ -123,14 +123,21 @@ def fetch_new_releases(existing_ids, cutoff_date):
 
 def main():
     if os.path.exists(EXISTING_CSV_PATH):
-        existing_data = pd.read_csv(EXISTING_CSV_PATH)
+        existing_data = pd.read_csv(EXISTING_CSV_PATH, dtype={"release_id": str})
     else:
         existing_data = pd.DataFrame(columns=[
             "release_id", "Artist", "Album Title", "Label", "Catalog Number",
-            "Release Date", "Track Title", "Track Position", "Duration", "Producer", "Remixer", "date_added"])
+            "Release Date", "Track Title", "Track Position", "Duration", "Producer", "Remixer"
+        ])
 
-    cutoff_date = get_cutoff_date(existing_data)
-    existing_ids = set(existing_data["release_id"].dropna().astype(int).tolist())
+    # Normalize to strings
+    existing_ids = set(existing_data["release_id"].dropna().astype(str).tolist())
+
+    print(f"🗂️ Loaded {len(existing_ids)} existing release IDs")
+
+    # Compute cutoff
+    cutoff_date = datetime.now() - timedelta(days=7)
+
     new_rows = fetch_new_releases(existing_ids, cutoff_date)
 
     if not new_rows:
@@ -140,11 +147,15 @@ def main():
     new_df = pd.DataFrame(new_rows)
     final = pd.concat([existing_data, new_df], ignore_index=True)
 
-    final = final[final["Track Title"].notna() & (final["Track Title"].str.lower() != "none")]
+    final = final[
+        final["Track Title"].notna() &
+        (final["Track Title"].str.lower() != "none")
+    ]
 
     print(f"✅ Added {len(new_df)} new rows.")
     print(f"🗂️ Final collection now has {len(final)} rows.")
     final.to_csv(EXISTING_CSV_PATH, index=False)
+
 
 
 if __name__ == "__main__":
