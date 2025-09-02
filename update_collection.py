@@ -124,13 +124,8 @@ def main():
         return
 
     new_df = pd.DataFrame(new_rows)
-
-    # 🔎 Print out what’s new
-    print("🆕 New releases added this run:")
-    for rid, title in zip(new_df["release_id"].unique(), new_df["Album Title"].unique()):
-        print(f"   - {rid}: {title}")
-
     final = pd.concat([existing_data, new_df], ignore_index=True)
+
     final = final[final["Track Title"].notna() & (final["Track Title"].str.lower() != "none")]
 
     print(f"✅ Added {len(new_df)} new rows.")
