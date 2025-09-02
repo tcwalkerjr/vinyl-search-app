@@ -2,7 +2,7 @@ import requests
 import pandas as pd
 import os
 import time
-from datetime import datetime, timedelta
+from datetime import datetime
 
 DISCOGS_USER = os.getenv("DISCOGS_USER")
 DISCOGS_TOKEN = os.getenv("DISCOGS_TOKEN")
@@ -13,16 +13,8 @@ HEADERS = {
     "User-Agent": "vinyl-search-app/1.0"
 }
 
-
-def get_cutoff_date(existing_data):
-    """Find the most recent date in the CSV, or fallback to 7 days ago."""
-    if "date_added" in existing_data.columns and not existing_data["date_added"].dropna().empty:
-        try:
-            latest_date = pd.to_datetime(existing_data["date_added"]).max()
-            return latest_date
-        except Exception:
-            pass
-    return datetime.now() - timedelta(days=25)
+# Hard cutoff for testing (we'll later make this dynamic: today - 7 days)
+CUTOFF_DATE = datetime.strptime("2025-08-14", "%Y-%m-%d")
 
 
 def fetch_release_tracks(release_id):
@@ -42,7 +34,8 @@ def fetch_release_tracks(release_id):
         if not title or title.lower() == "none":
             continue
         extra_artists = track.get("extraartists", [])
-        remixers, producers = [], []
+        remixers = []
+        producers = []
         for artist in extra_artists:
             role = artist.get("role", "").lower()
             name = artist.get("name", "")
@@ -57,7 +50,7 @@ def fetch_release_tracks(release_id):
             remixers = release_remixers
 
         results.append({
-            "release_id": release_id,
+            "release_id": str(release_id),
             "Track Title": title,
             "Track Position": track.get("position", ""),
             "Duration": track.get("duration", ""),
@@ -67,95 +60,77 @@ def fetch_release_tracks(release_id):
             "Album Title": data.get("title", ""),
             "Label": ", ".join(l.get("name", "") for l in data.get("labels", [])),
             "Catalog Number": ", ".join(l.get("catno", "") for l in data.get("labels", [])),
-            "Release Date": data.get("year", ""),
-            "date_added": datetime.now().strftime("%Y-%m-%d")  # tag with today's run
+            "Release Date": data.get("year", "")
         })
     return results
 
 
-def fetch_new_releases(existing_ids, cutoff_date):
-    """Fetch new releases from collection added after cutoff_date."""
+def fetch_new_releases(existing_ids):
     releases = []
     page = 1
     while True:
-        response = requests.get(
-            BASE_URL, headers=HEADERS,
-            params={"page": page, "token": DISCOGS_TOKEN}
-        )
+        response = requests.get(BASE_URL, headers=HEADERS, params={"page": page, "token": DISCOGS_TOKEN})
         time.sleep(1)
         response.raise_for_status()
         data = response.json()
 
         for item in data["releases"]:
-            release_id = item.get("basic_information", {}).get("id")
-            title = item.get("basic_information", {}).get("title", "")
             date_added = item.get("date_added")
-
             if not date_added:
-                print(f"⚠️ Skipping {title} ({release_id}) — no date_added")
                 continue
 
             added_date = datetime.strptime(date_added[:10], "%Y-%m-%d")
+            release_id = str(item.get("basic_information", {}).get("id"))
+            title = item.get("basic_information", {}).get("title", "Unknown Title")
 
-            # Debug log
-            print(f"📀 {title} ({release_id}) added on {added_date.date()}")
+            print(f"🔎 Checking {title} ({release_id}) added {added_date.date()}")
 
-            if added_date < cutoff_date:
-                continue
+            if added_date < CUTOFF_DATE:
+                print(f"   ⏩ Skipped (added before cutoff {CUTOFF_DATE.date()})")
+                continue  # FIX: don't stop the loop, just skip
 
             if release_id in existing_ids:
+                print("   ⏩ Skipped (already in CSV)")
                 continue
 
             formats = item.get("basic_information", {}).get("formats", [])
             if not any("Vinyl" in desc for fmt in formats for desc in fmt.get("descriptions", [])):
+                print("   ⏩ Skipped (not vinyl)")
                 continue
 
             track_rows = fetch_release_tracks(release_id)
             releases.extend(track_rows)
+            print(f"   ✅ Added {len(track_rows)} tracks")
 
         if page >= data["pagination"]["pages"]:
             break
         page += 1
-
     return releases
-
 
 
 def main():
     if os.path.exists(EXISTING_CSV_PATH):
-        existing_data = pd.read_csv(EXISTING_CSV_PATH, dtype={"release_id": str})
+        existing_data = pd.read_csv(EXISTING_CSV_PATH)
     else:
         existing_data = pd.DataFrame(columns=[
             "release_id", "Artist", "Album Title", "Label", "Catalog Number",
-            "Release Date", "Track Title", "Track Position", "Duration", "Producer", "Remixer"
-        ])
+            "Release Date", "Track Title", "Track Position", "Duration", "Producer", "Remixer"])
 
-    # Normalize to strings
     existing_ids = set(existing_data["release_id"].dropna().astype(str).tolist())
-
-    print(f"🗂️ Loaded {len(existing_ids)} existing release IDs")
-
-    # Compute cutoff
-    cutoff_date = datetime.now() - timedelta(days=25)
-
-    new_rows = fetch_new_releases(existing_ids, cutoff_date)
+    new_rows = fetch_new_releases(existing_ids)
 
     if not new_rows:
-        print("✅ No new releases found since", cutoff_date.date())
+        print("✅ No new releases found since", CUTOFF_DATE.date())
         return
 
     new_df = pd.DataFrame(new_rows)
     final = pd.concat([existing_data, new_df], ignore_index=True)
 
-    final = final[
-        final["Track Title"].notna() &
-        (final["Track Title"].str.lower() != "none")
-    ]
+    final = final[final["Track Title"].notna() & (final["Track Title"].str.lower() != "none")]
 
     print(f"✅ Added {len(new_df)} new rows.")
     print(f"🗂️ Final collection now has {len(final)} rows.")
     final.to_csv(EXISTING_CSV_PATH, index=False)
-
 
 
 if __name__ == "__main__":
