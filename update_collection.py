@@ -74,23 +74,35 @@ def fetch_release_tracks(release_id):
 
 
 def fetch_new_releases(existing_ids, cutoff_date):
+    """Fetch new releases from collection added after cutoff_date."""
     releases = []
     page = 1
     while True:
-        response = requests.get(BASE_URL, headers=HEADERS, params={"page": page, "token": DISCOGS_TOKEN})
+        response = requests.get(
+            BASE_URL, headers=HEADERS,
+            params={"page": page, "token": DISCOGS_TOKEN}
+        )
         time.sleep(1)
         response.raise_for_status()
         data = response.json()
 
         for item in data["releases"]:
-            date_added = item.get("date_added")
-            if not date_added:
-                continue
-            added_date = datetime.strptime(date_added[:10], "%Y-%m-%d")
-            if added_date < cutoff_date:
-                return releases
-
             release_id = item.get("basic_information", {}).get("id")
+            title = item.get("basic_information", {}).get("title", "")
+            date_added = item.get("date_added")
+
+            if not date_added:
+                print(f"⚠️ Skipping {title} ({release_id}) — no date_added")
+                continue
+
+            added_date = datetime.strptime(date_added[:10], "%Y-%m-%d")
+
+            # Debug log
+            print(f"📀 {title} ({release_id}) added on {added_date.date()}")
+
+            if added_date < cutoff_date:
+                continue
+
             if release_id in existing_ids:
                 continue
 
@@ -104,7 +116,9 @@ def fetch_new_releases(existing_ids, cutoff_date):
         if page >= data["pagination"]["pages"]:
             break
         page += 1
+
     return releases
+
 
 
 def main():
