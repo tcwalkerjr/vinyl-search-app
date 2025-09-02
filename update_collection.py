@@ -136,7 +136,7 @@ def main():
     print(f"🗂️ Loaded {len(existing_ids)} existing release IDs")
 
     # Compute cutoff
-    cutoff_date = datetime.now() - timedelta(days=7)
+    cutoff_date = datetime.now() - timedelta(days=25)
 
     new_rows = fetch_new_releases(existing_ids, cutoff_date)
 
