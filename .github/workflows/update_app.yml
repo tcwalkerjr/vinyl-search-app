@@ -3,26 +3,20 @@ name: Update App
 on:
   schedule:
     - cron: '0 4 * * 1'  # Runs every Monday at 03:00 UTC
-  workflow_dispatch:
+  push:
+    branches:
+       - main
 
 jobs:
-  update-collection:
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v3
-
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.10'
-
-      - name: Install dependencies
-        run: pip install -r requirements.txt
-
-      - name: Run update script
-        env:
-          DISCOGS_USER: ${{ secrets.DISCOGS_USER }}
-          DISCOGS_TOKEN: ${{ secrets.DISCOGS_TOKEN }}
-        run: vinyl_collection_search_app.py
+    run-script:
+      runs-on: ubuntu-latest
+      steps:
+        - uses: actions/checkout@v4
+        - name: Set up Python
+          uses: actions/setup-python@v5
+          with:
+            python-version: '3.10' # Specify your desired Python version
+        - name: Install dependencies
+          run: pip install -r requirements.txt # If you have a requirements.txt
+        - name: Run Python script
+          run: vinyl_collection_search_app.py
