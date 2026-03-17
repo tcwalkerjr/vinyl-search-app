@@ -15,6 +15,7 @@ HEADERS = {
 
 
 def is_vinyl_format(formats):
+    """Return True if format is Vinyl or 12\"."""
     for fmt in formats:
         name = fmt.get("name", "").lower()
         descriptions = [d.lower() for d in fmt.get("descriptions", [])]
@@ -25,6 +26,7 @@ def is_vinyl_format(formats):
             return True
         if any('12"' in d or "12”" in d for d in descriptions):
             return True
+
     return False
 
 
@@ -37,7 +39,6 @@ def fetch_release_tracks(release_id):
         return []
 
     data = response.json()
-
     results = []
 
     for track in data.get("tracklist", []):
@@ -63,6 +64,7 @@ def fetch_release_tracks(release_id):
 
 
 def fetch_all_discogs():
+    """Fetch all releases + IDs from Discogs"""
     releases = []
     all_ids = set()
     page = 1
@@ -96,12 +98,15 @@ def fetch_all_discogs():
 
         if page >= data["pagination"]["pages"]:
             break
+
         page += 1
 
+    print(f"📀 Total releases in Discogs: {len(all_ids)}")
     return releases, all_ids
 
 
 def main():
+    # Load existing CSV
     if os.path.exists(EXISTING_CSV_PATH):
         df = pd.read_csv(EXISTING_CSV_PATH, dtype={"release_id": str})
     else:
@@ -112,21 +117,32 @@ def main():
 
     existing_ids = set(df["release_id"].dropna())
 
+    # Fetch Discogs data
     discogs_releases, discogs_ids = fetch_all_discogs()
 
-    # 🔄 REMOVE deleted releases
+    # Compare sets
     ids_to_remove = existing_ids - discogs_ids
-    if ids_to_remove:
-        print(f"\n🗑️ Removing {len(ids_to_remove)} releases")
-        df = df[~df["release_id"].isin(ids_to_remove)]
-
-    # ➕ ADD new releases
     ids_to_add = discogs_ids - existing_ids
 
+    print("\n========== 🔄 SYNC SUMMARY ==========")
+    print(f"🗑️ Releases to remove: {len(ids_to_remove)}")
+    print(f"🆕 Releases to add: {len(ids_to_add)}")
+    print("====================================\n")
+
+    # 🗑️ Remove deleted releases
+    if ids_to_remove:
+        print("🗑️ Removing releases:")
+        for rid in ids_to_remove:
+            print(f"   ❌ {rid}")
+        df = df[~df["release_id"].isin(ids_to_remove)]
+    else:
+        print("🗑️ No releases to remove.")
+
+    # ➕ Add new releases
     new_rows = []
 
     if ids_to_add:
-        print(f"\n🆕 Adding {len(ids_to_add)} releases")
+        print("\n🆕 Adding releases:")
 
         for rel in discogs_releases:
             if rel["id"] not in ids_to_add:
@@ -141,13 +157,28 @@ def main():
                 print(f"   ⚠️ No tracklist — skipped")
 
     else:
-        print("\n🆕 No new releases")
+        print("\n🆕 No new releases to add.")
 
+    # Merge new rows
     if new_rows:
         df = pd.concat([df, pd.DataFrame(new_rows)], ignore_index=True)
 
-    print(f"\n📊 Final row count: {len(df)}")
+    # Clean invalid rows
+    df = df[
+        df["Track Title"].notna() &
+        (df["Track Title"].str.lower() != "none")
+    ]
 
+    # Final summary
+    print("\n========== ✅ FINAL ==========")
+    print(f"🗂️ Total rows: {len(df)}")
+
+    if not ids_to_add and not ids_to_remove:
+        print("✅ Collection already fully in sync with Discogs")
+
+    print("================================\n")
+
+    # Save
     df.to_csv(EXISTING_CSV_PATH, index=False)
 
 
