@@ -1,3 +1,4 @@
+print("🔥 NEW VERSION — SYNC MODE (NO DATE FILTER) 🔥")
 import requests
 import pandas as pd
 import os
