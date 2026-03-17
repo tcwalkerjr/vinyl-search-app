@@ -1,4 +1,5 @@
-print("🔥 NEW VERSION — SYNC MODE (NO DATE FILTER) 🔥")
+print("🔥 VINYL SYNC — FULL COLLECTION MODE 🔥")
+
 import requests
 import pandas as pd
 import os
@@ -11,21 +12,26 @@ EXISTING_CSV_PATH = "merged_12inch_records_only.csv"
 BASE_URL = f"https://api.discogs.com/users/{DISCOGS_USER}/collection/folders/0/releases"
 
 HEADERS = {
-    "User-Agent": "vinyl-search-app/1.0"
+    "User-Agent": "vinyl-search-app/2.0"
 }
 
 
+# 🔍 Improved vinyl detection
 def is_vinyl_format(formats):
-    """Return True if format is Vinyl or 12\"."""
     for fmt in formats:
         name = fmt.get("name", "").lower()
         descriptions = [d.lower() for d in fmt.get("descriptions", [])]
 
-        if "vinyl" in name:
-            return True
-        if any("vinyl" in d for d in descriptions):
-            return True
-        if any('12"' in d or "12”" in d for d in descriptions):
+        combined = " ".join([name] + descriptions)
+
+        if any(x in combined for x in [
+            "vinyl",
+            '12"', "12”",
+            "lp",
+            "ep",
+            "single",
+            "maxi-single"
+        ]):
             return True
 
     return False
@@ -33,10 +39,17 @@ def is_vinyl_format(formats):
 
 def fetch_release_tracks(release_id):
     url = f"https://api.discogs.com/releases/{release_id}"
-    response = requests.get(url, headers=HEADERS, params={"token": DISCOGS_TOKEN})
-    time.sleep(1)
+
+    response = requests.get(
+        url,
+        headers=HEADERS,
+        params={"token": DISCOGS_TOKEN}
+    )
+
+    time.sleep(0.5)
 
     if response.status_code != 200:
+        print(f"   ❌ Failed to fetch release {release_id}")
         return []
 
     data = response.json()
@@ -44,6 +57,7 @@ def fetch_release_tracks(release_id):
 
     for track in data.get("tracklist", []):
         title = track.get("title", "").strip()
+
         if not title or title.lower() == "none":
             continue
 
@@ -65,7 +79,6 @@ def fetch_release_tracks(release_id):
 
 
 def fetch_all_discogs():
-    """Fetch all releases + IDs from Discogs"""
     releases = []
     all_ids = set()
     page = 1
@@ -78,19 +91,25 @@ def fetch_all_discogs():
             headers=HEADERS,
             params={"page": page, "token": DISCOGS_TOKEN}
         )
-        time.sleep(1)
+
+        time.sleep(0.5)
         response.raise_for_status()
+
         data = response.json()
 
         for item in data["releases"]:
-            release_id = str(item.get("basic_information", {}).get("id"))
-            title = item.get("basic_information", {}).get("title", "Unknown")
-            formats = item.get("basic_information", {}).get("formats", [])
+            info = item.get("basic_information", {})
+
+            release_id = str(info.get("id"))
+            title = info.get("title", "Unknown")
+            formats = info.get("formats", [])
+
+            # ✅ ONLY keep vinyl — and keep IDs aligned
+            if not is_vinyl_format(formats):
+                print(f"   ⏭️ Skipping non-vinyl: {title} ({release_id})")
+                continue
 
             all_ids.add(release_id)
-
-            if not is_vinyl_format(formats):
-                continue
 
             releases.append({
                 "id": release_id,
@@ -102,12 +121,12 @@ def fetch_all_discogs():
 
         page += 1
 
-    print(f"📀 Total releases in Discogs: {len(all_ids)}")
+    print(f"\n📀 Total VINYL releases in Discogs: {len(all_ids)}")
     return releases, all_ids
 
 
 def main():
-    # Load existing CSV
+    # 📂 Load CSV
     if os.path.exists(EXISTING_CSV_PATH):
         df = pd.read_csv(EXISTING_CSV_PATH, dtype={"release_id": str})
     else:
@@ -118,10 +137,10 @@ def main():
 
     existing_ids = set(df["release_id"].dropna())
 
-    # Fetch Discogs data
+    # 🌐 Fetch Discogs
     discogs_releases, discogs_ids = fetch_all_discogs()
 
-    # Compare sets
+    # 🔄 Compare
     ids_to_remove = existing_ids - discogs_ids
     ids_to_add = discogs_ids - existing_ids
 
@@ -130,16 +149,17 @@ def main():
     print(f"🆕 Releases to add: {len(ids_to_add)}")
     print("====================================\n")
 
-    # 🗑️ Remove deleted releases
+    # 🗑️ REMOVE
     if ids_to_remove:
         print("🗑️ Removing releases:")
         for rid in ids_to_remove:
             print(f"   ❌ {rid}")
+
         df = df[~df["release_id"].isin(ids_to_remove)]
     else:
         print("🗑️ No releases to remove.")
 
-    # ➕ Add new releases
+    # ➕ ADD
     new_rows = []
 
     if ids_to_add:
@@ -152,6 +172,7 @@ def main():
             print(f"   ➕ {rel['title']} ({rel['id']})")
 
             tracks = fetch_release_tracks(rel["id"])
+
             if tracks:
                 new_rows.extend(tracks)
             else:
@@ -160,17 +181,17 @@ def main():
     else:
         print("\n🆕 No new releases to add.")
 
-    # Merge new rows
+    # 🧩 Merge
     if new_rows:
         df = pd.concat([df, pd.DataFrame(new_rows)], ignore_index=True)
 
-    # Clean invalid rows
+    # 🧼 Clean
     df = df[
         df["Track Title"].notna() &
         (df["Track Title"].str.lower() != "none")
     ]
 
-    # Final summary
+    # 📊 Final
     print("\n========== ✅ FINAL ==========")
     print(f"🗂️ Total rows: {len(df)}")
 
@@ -179,7 +200,7 @@ def main():
 
     print("================================\n")
 
-    # Save
+    # 💾 Save
     df.to_csv(EXISTING_CSV_PATH, index=False)
 
 
