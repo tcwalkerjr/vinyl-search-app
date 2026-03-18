@@ -1,43 +1,57 @@
-print("🔥 VINYL SYNC — STRICT VINYL MODE 🔥")
+print("🔥 VINYL SYNC — INCREMENTAL MODE (LAST RUN) 🔥")
 
 import requests
 import pandas as pd
 import os
 import time
+from datetime import datetime
 
 DISCOGS_USER = os.getenv("DISCOGS_USER")
 DISCOGS_TOKEN = os.getenv("DISCOGS_TOKEN")
+
 EXISTING_CSV_PATH = "merged_12inch_records_only.csv"
+LAST_RUN_FILE = "last_run.txt"
 
 BASE_URL = f"https://api.discogs.com/users/{DISCOGS_USER}/collection/folders/0/releases"
 
 HEADERS = {
-    "User-Agent": "vinyl-search-app/3.0"
+    "User-Agent": "vinyl-search-app/4.0"
 }
+
+
+# 📅 LAST RUN HANDLING
+def get_last_run_date():
+    if not os.path.exists(LAST_RUN_FILE):
+        return datetime(2000, 1, 1)
+
+    with open(LAST_RUN_FILE, "r") as f:
+        return datetime.fromisoformat(f.read().strip())
+
+
+def save_last_run_date():
+    with open(LAST_RUN_FILE, "w") as f:
+        f.write(datetime.utcnow().date().isoformat())
+
 
 # 🎯 STRICT VINYL FILTER
 def is_vinyl_format(formats):
     for fmt in formats:
         name = fmt.get("name", "").lower()
-
-        # MUST explicitly be vinyl
         if "vinyl" in name:
             return True
-
     return False
 
 
-# 🎯 TRACK FILTER (vinyl-style positions only)
+# 🎯 VINYL TRACK STRUCTURE CHECK
 def is_vinyl_track(position):
     if not position:
         return False
 
     position = str(position).strip().upper()
 
-    # Accept common vinyl formats
     return (
         position.startswith(("A", "B", "C", "D")) or
-        position in ["A", "B"]  # some records just use A/B
+        position in ["A", "B"]
     )
 
 
@@ -66,7 +80,6 @@ def fetch_release_tracks(release_id):
         if not title or title.lower() == "none":
             continue
 
-        # 🎯 FILTER NON-VINYL TRACK STRUCTURES
         if not is_vinyl_track(position):
             continue
 
@@ -87,10 +100,8 @@ def fetch_release_tracks(release_id):
     return results
 
 
-def fetch_all_discogs():
+def fetch_new_discogs_releases(last_run):
     releases = []
-    vinyl_ids = set()
-    all_ids = set()
     page = 1
 
     while True:
@@ -99,7 +110,12 @@ def fetch_all_discogs():
         response = requests.get(
             BASE_URL,
             headers=HEADERS,
-            params={"page": page, "token": DISCOGS_TOKEN}
+            params={
+                "page": page,
+                "token": DISCOGS_TOKEN,
+                "sort": "added",
+                "sort_order": "desc"
+            }
         )
 
         time.sleep(0.5)
@@ -107,38 +123,47 @@ def fetch_all_discogs():
 
         data = response.json()
 
+        stop_fetching = False
+
         for item in data["releases"]:
             info = item.get("basic_information", {})
 
             release_id = str(info.get("id"))
             title = info.get("title", "Unknown")
             formats = info.get("formats", [])
+            date_added = item.get("date_added")
 
-            all_ids.add(release_id)
+            if date_added:
+                added_dt = datetime.fromisoformat(date_added.replace("Z", ""))
 
+                # 🛑 STOP once we hit older records
+                if added_dt <= last_run:
+                    stop_fetching = True
+                    break
+
+            # 🎯 VINYL FILTER
             if not is_vinyl_format(formats):
                 print(f"   ⏭️ Skipping non-vinyl: {title} ({release_id})")
                 continue
-
-            vinyl_ids.add(release_id)
 
             releases.append({
                 "id": release_id,
                 "title": title
             })
 
-        if page >= data["pagination"]["pages"]:
+        if stop_fetching or page >= data["pagination"]["pages"]:
             break
 
         page += 1
 
-    print(f"\n📀 Total collection items: {len(all_ids)}")
-    print(f"🎵 Total VINYL items: {len(vinyl_ids)}")
-
-    return releases, vinyl_ids
+    print(f"\n🆕 New vinyl releases found: {len(releases)}")
+    return releases
 
 
 def main():
+    last_run = get_last_run_date()
+    print(f"⏱️ Last run: {last_run}")
+
     # 📂 Load CSV
     if os.path.exists(EXISTING_CSV_PATH):
         df = pd.read_csv(EXISTING_CSV_PATH, dtype={"release_id": str})
@@ -150,24 +175,16 @@ def main():
 
     existing_ids = set(df["release_id"].dropna())
 
-    # 🌐 Fetch Discogs
-    discogs_releases, vinyl_ids = fetch_all_discogs()
+    # 🌐 Fetch ONLY new releases
+    new_releases = fetch_new_discogs_releases(last_run)
 
-    # 🔄 Compare ONLY vinyl IDs
-    ids_to_add = vinyl_ids - existing_ids
-
-    print("\n========== 🔄 SYNC SUMMARY ==========")
-    print(f"🆕 Releases to add: {len(ids_to_add)}")
-    print("====================================\n")
-
-    # ➕ ADD ONLY (🚨 NO AUTO DELETE — protects your data)
     new_rows = []
 
-    if ids_to_add:
-        print("🆕 Adding releases:")
+    if new_releases:
+        print("\n🆕 Adding releases:")
 
-        for rel in discogs_releases:
-            if rel["id"] not in ids_to_add:
+        for rel in new_releases:
+            if rel["id"] in existing_ids:
                 continue
 
             print(f"   ➕ {rel['title']} ({rel['id']})")
@@ -180,7 +197,7 @@ def main():
                 print(f"   ⚠️ No valid vinyl tracks — skipped")
 
     else:
-        print("🆕 No new releases to add.")
+        print("🆕 No new releases found.")
 
     # 🧩 Merge
     if new_rows:
@@ -197,8 +214,12 @@ def main():
     print(f"🗂️ Total rows: {len(df)}")
     print("================================\n")
 
-    # 💾 Save
+    # 💾 Save CSV
     df.to_csv(EXISTING_CSV_PATH, index=False)
+
+    # 💾 Save LAST RUN
+    save_last_run_date()
+    print("💾 Updated last_run.txt")
 
 
 if __name__ == "__main__":
