@@ -1,4 +1,4 @@
-print("🔥 VINYL SYNC — FULL COLLECTION MODE 🔥")
+print("🔥 VINYL SYNC — STRICT VINYL MODE 🔥")
 
 import requests
 import pandas as pd
@@ -12,29 +12,33 @@ EXISTING_CSV_PATH = "merged_12inch_records_only.csv"
 BASE_URL = f"https://api.discogs.com/users/{DISCOGS_USER}/collection/folders/0/releases"
 
 HEADERS = {
-    "User-Agent": "vinyl-search-app/2.0"
+    "User-Agent": "vinyl-search-app/3.0"
 }
 
-
-# 🔍 Improved vinyl detection
+# 🎯 STRICT VINYL FILTER
 def is_vinyl_format(formats):
     for fmt in formats:
         name = fmt.get("name", "").lower()
-        descriptions = [d.lower() for d in fmt.get("descriptions", [])]
 
-        combined = " ".join([name] + descriptions)
-
-        if any(x in combined for x in [
-            "vinyl",
-            '12"', "12”",
-            "lp",
-            "ep",
-            "single",
-            "maxi-single"
-        ]):
+        # MUST explicitly be vinyl
+        if "vinyl" in name:
             return True
 
     return False
+
+
+# 🎯 TRACK FILTER (vinyl-style positions only)
+def is_vinyl_track(position):
+    if not position:
+        return False
+
+    position = str(position).strip().upper()
+
+    # Accept common vinyl formats
+    return (
+        position.startswith(("A", "B", "C", "D")) or
+        position in ["A", "B"]  # some records just use A/B
+    )
 
 
 def fetch_release_tracks(release_id):
@@ -57,14 +61,19 @@ def fetch_release_tracks(release_id):
 
     for track in data.get("tracklist", []):
         title = track.get("title", "").strip()
+        position = track.get("position", "")
 
         if not title or title.lower() == "none":
+            continue
+
+        # 🎯 FILTER NON-VINYL TRACK STRUCTURES
+        if not is_vinyl_track(position):
             continue
 
         results.append({
             "release_id": str(release_id),
             "Track Title": title,
-            "Track Position": track.get("position", ""),
+            "Track Position": position,
             "Duration": track.get("duration", ""),
             "Producer": "",
             "Remixer": "",
@@ -80,6 +89,7 @@ def fetch_release_tracks(release_id):
 
 def fetch_all_discogs():
     releases = []
+    vinyl_ids = set()
     all_ids = set()
     page = 1
 
@@ -104,12 +114,13 @@ def fetch_all_discogs():
             title = info.get("title", "Unknown")
             formats = info.get("formats", [])
 
-            # ✅ ONLY keep vinyl — and keep IDs aligned
+            all_ids.add(release_id)
+
             if not is_vinyl_format(formats):
                 print(f"   ⏭️ Skipping non-vinyl: {title} ({release_id})")
                 continue
 
-            all_ids.add(release_id)
+            vinyl_ids.add(release_id)
 
             releases.append({
                 "id": release_id,
@@ -121,8 +132,10 @@ def fetch_all_discogs():
 
         page += 1
 
-    print(f"\n📀 Total VINYL releases in Discogs: {len(all_ids)}")
-    return releases, all_ids
+    print(f"\n📀 Total collection items: {len(all_ids)}")
+    print(f"🎵 Total VINYL items: {len(vinyl_ids)}")
+
+    return releases, vinyl_ids
 
 
 def main():
@@ -138,32 +151,20 @@ def main():
     existing_ids = set(df["release_id"].dropna())
 
     # 🌐 Fetch Discogs
-    discogs_releases, discogs_ids = fetch_all_discogs()
+    discogs_releases, vinyl_ids = fetch_all_discogs()
 
-    # 🔄 Compare
-    ids_to_remove = existing_ids - discogs_ids
-    ids_to_add = discogs_ids - existing_ids
+    # 🔄 Compare ONLY vinyl IDs
+    ids_to_add = vinyl_ids - existing_ids
 
     print("\n========== 🔄 SYNC SUMMARY ==========")
-    print(f"🗑️ Releases to remove: {len(ids_to_remove)}")
     print(f"🆕 Releases to add: {len(ids_to_add)}")
     print("====================================\n")
 
-    # 🗑️ REMOVE
-    if ids_to_remove:
-        print("🗑️ Removing releases:")
-        for rid in ids_to_remove:
-            print(f"   ❌ {rid}")
-
-        df = df[~df["release_id"].isin(ids_to_remove)]
-    else:
-        print("🗑️ No releases to remove.")
-
-    # ➕ ADD
+    # ➕ ADD ONLY (🚨 NO AUTO DELETE — protects your data)
     new_rows = []
 
     if ids_to_add:
-        print("\n🆕 Adding releases:")
+        print("🆕 Adding releases:")
 
         for rel in discogs_releases:
             if rel["id"] not in ids_to_add:
@@ -176,10 +177,10 @@ def main():
             if tracks:
                 new_rows.extend(tracks)
             else:
-                print(f"   ⚠️ No tracklist — skipped")
+                print(f"   ⚠️ No valid vinyl tracks — skipped")
 
     else:
-        print("\n🆕 No new releases to add.")
+        print("🆕 No new releases to add.")
 
     # 🧩 Merge
     if new_rows:
@@ -194,10 +195,6 @@ def main():
     # 📊 Final
     print("\n========== ✅ FINAL ==========")
     print(f"🗂️ Total rows: {len(df)}")
-
-    if not ids_to_add and not ids_to_remove:
-        print("✅ Collection already fully in sync with Discogs")
-
     print("================================\n")
 
     # 💾 Save
