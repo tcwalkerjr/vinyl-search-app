@@ -1,6 +1,7 @@
 import streamlit as st
 st.cache_data.clear()
-st.cache_resource.clear()import pandas as pd
+st.cache_resource.clear()
+import pandas as pd
 import random
 import requests
 
