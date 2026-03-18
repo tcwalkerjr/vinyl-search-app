@@ -1,10 +1,10 @@
-print("🔥 VINYL SYNC — INCREMENTAL MODE (LAST RUN) 🔥")
+print("🔥 VINYL SYNC — INCREMENTAL MODE (STABLE v5) 🔥")
 
 import requests
 import pandas as pd
 import os
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 
 DISCOGS_USER = os.getenv("DISCOGS_USER")
 DISCOGS_TOKEN = os.getenv("DISCOGS_TOKEN")
@@ -15,46 +15,67 @@ LAST_RUN_FILE = "last_run.txt"
 BASE_URL = f"https://api.discogs.com/users/{DISCOGS_USER}/collection/folders/0/releases"
 
 HEADERS = {
-    "User-Agent": "vinyl-search-app/4.0"
+    "User-Agent": "vinyl-search-app/5.0"
 }
 
 
-# 📅 LAST RUN HANDLING
+# ================================
+# 📅 LAST RUN HANDLING (UTC SAFE)
+# ================================
 def get_last_run_date():
     if not os.path.exists(LAST_RUN_FILE):
-        return datetime(2000, 1, 1)
+        return datetime(2000, 1, 1, tzinfo=timezone.utc)
 
     with open(LAST_RUN_FILE, "r") as f:
-        return datetime.fromisoformat(f.read().strip())
+        return datetime.fromisoformat(f.read().strip()).replace(tzinfo=timezone.utc)
 
 
 def save_last_run_date():
     with open(LAST_RUN_FILE, "w") as f:
-        f.write(datetime.utcnow().date().isoformat())
+        f.write(datetime.now(timezone.utc).isoformat())
 
 
-# 🎯 STRICT VINYL FILTER
+# ================================
+# 🎯 VINYL FILTER (balanced)
+# ================================
 def is_vinyl_format(formats):
     for fmt in formats:
         name = fmt.get("name", "").lower()
-        if "vinyl" in name:
+        descriptions = [d.lower() for d in fmt.get("descriptions", [])]
+
+        combined = " ".join([name] + descriptions)
+
+        if any(x in combined for x in [
+            "vinyl",
+            '12"', "12”",
+            "lp",
+            "ep",
+            "single",
+            "maxi-single"
+        ]):
             return True
+
     return False
 
 
-# 🎯 VINYL TRACK STRUCTURE CHECK
-def is_vinyl_track(position):
+# ================================
+# 🎯 TRACK STRUCTURE FILTER
+# ================================
+def looks_like_vinyl_track(position):
     if not position:
         return False
 
-    position = str(position).strip().upper()
+    pos = str(position).strip().upper()
 
     return (
-        position.startswith(("A", "B", "C", "D")) or
-        position in ["A", "B"]
+        pos.startswith(("A", "B", "C", "D")) or
+        pos in ["A", "B"]
     )
 
 
+# ================================
+# 🎵 FETCH TRACKS
+# ================================
 def fetch_release_tracks(release_id):
     url = f"https://api.discogs.com/releases/{release_id}"
 
@@ -73,6 +94,8 @@ def fetch_release_tracks(release_id):
     data = response.json()
     results = []
 
+    valid_tracks = 0
+
     for track in data.get("tracklist", []):
         title = track.get("title", "").strip()
         position = track.get("position", "")
@@ -80,8 +103,8 @@ def fetch_release_tracks(release_id):
         if not title or title.lower() == "none":
             continue
 
-        if not is_vinyl_track(position):
-            continue
+        if looks_like_vinyl_track(position):
+            valid_tracks += 1
 
         results.append({
             "release_id": str(release_id),
@@ -97,9 +120,16 @@ def fetch_release_tracks(release_id):
             "Release Date": data.get("year", "")
         })
 
+    # ✅ Require at least ONE vinyl-style track
+    if valid_tracks == 0:
+        return []
+
     return results
 
 
+# ================================
+# 🌐 FETCH NEW RELEASES ONLY
+# ================================
 def fetch_new_discogs_releases(last_run):
     releases = []
     page = 1
@@ -123,7 +153,7 @@ def fetch_new_discogs_releases(last_run):
 
         data = response.json()
 
-        stop_fetching = False
+        stop = False
 
         for item in data["releases"]:
             info = item.get("basic_information", {})
@@ -133,15 +163,16 @@ def fetch_new_discogs_releases(last_run):
             formats = info.get("formats", [])
             date_added = item.get("date_added")
 
-            if date_added:
-                added_dt = datetime.fromisoformat(date_added.replace("Z", ""))
+            if not date_added:
+                continue
 
-                # 🛑 STOP once we hit older records
-                if added_dt <= last_run:
-                    stop_fetching = True
-                    break
+            added_dt = datetime.fromisoformat(date_added.replace("Z", "+00:00"))
 
-            # 🎯 VINYL FILTER
+            # 🛑 stop when older than last run
+            if added_dt <= last_run:
+                stop = True
+                break
+
             if not is_vinyl_format(formats):
                 print(f"   ⏭️ Skipping non-vinyl: {title} ({release_id})")
                 continue
@@ -151,7 +182,7 @@ def fetch_new_discogs_releases(last_run):
                 "title": title
             })
 
-        if stop_fetching or page >= data["pagination"]["pages"]:
+        if stop or page >= data["pagination"]["pages"]:
             break
 
         page += 1
@@ -160,11 +191,14 @@ def fetch_new_discogs_releases(last_run):
     return releases
 
 
+# ================================
+# 🚀 MAIN
+# ================================
 def main():
     last_run = get_last_run_date()
     print(f"⏱️ Last run: {last_run}")
 
-    # 📂 Load CSV
+    # Load CSV
     if os.path.exists(EXISTING_CSV_PATH):
         df = pd.read_csv(EXISTING_CSV_PATH, dtype={"release_id": str})
     else:
@@ -175,7 +209,7 @@ def main():
 
     existing_ids = set(df["release_id"].dropna())
 
-    # 🌐 Fetch ONLY new releases
+    # Fetch new releases only
     new_releases = fetch_new_discogs_releases(last_run)
 
     new_rows = []
@@ -194,30 +228,30 @@ def main():
             if tracks:
                 new_rows.extend(tracks)
             else:
-                print(f"   ⚠️ No valid vinyl tracks — skipped")
+                print(f"   ⚠️ Not valid vinyl structure — skipped")
 
     else:
         print("🆕 No new releases found.")
 
-    # 🧩 Merge
+    # Merge
     if new_rows:
         df = pd.concat([df, pd.DataFrame(new_rows)], ignore_index=True)
 
-    # 🧼 Clean
+    # Clean
     df = df[
         df["Track Title"].notna() &
         (df["Track Title"].str.lower() != "none")
     ]
 
-    # 📊 Final
+    # Final
     print("\n========== ✅ FINAL ==========")
     print(f"🗂️ Total rows: {len(df)}")
     print("================================\n")
 
-    # 💾 Save CSV
+    # Save CSV
     df.to_csv(EXISTING_CSV_PATH, index=False)
 
-    # 💾 Save LAST RUN
+    # Save last run timestamp
     save_last_run_date()
     print("💾 Updated last_run.txt")
 
