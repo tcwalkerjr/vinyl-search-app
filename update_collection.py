@@ -1,9 +1,10 @@
-print("🔥 VINYL SYNC — INCREMENTAL MODE (STABLE v5) 🔥")
+print("🔥 VINYL SYNC — INCREMENTAL + BACKFILL MODE (v6) 🔥")
 
 import requests
 import pandas as pd
 import os
 import time
+import re
 from datetime import datetime, timezone
 
 DISCOGS_USER = os.getenv("DISCOGS_USER")
@@ -15,12 +16,13 @@ LAST_RUN_FILE = "last_run.txt"
 BASE_URL = f"https://api.discogs.com/users/{DISCOGS_USER}/collection/folders/0/releases"
 
 HEADERS = {
-    "User-Agent": "vinyl-search-app/5.0"
+    "User-Agent": "vinyl-search-app/6.0"
 }
 
+release_cache = {}
 
 # ================================
-# 📅 LAST RUN HANDLING (UTC SAFE)
+# 📅 LAST RUN
 # ================================
 def get_last_run_date():
     if not os.path.exists(LAST_RUN_FILE):
@@ -36,150 +38,181 @@ def save_last_run_date():
 
 
 # ================================
-# 🎯 VINYL FILTER (balanced)
+# 🧼 HELPERS
 # ================================
+def is_blank(value):
+    return pd.isna(value) or str(value).strip() == ""
+
+
+def split_names(raw_name):
+    if not raw_name:
+        return []
+
+    parts = re.split(r",|&|/| vs\. | feat\. | featuring | and ", raw_name, flags=re.IGNORECASE)
+    return [p.strip() for p in parts if p.strip()]
+
+
+def canonicalize_name(name):
+    if not name:
+        return ""
+
+    if "," in name:
+        parts = [p.strip() for p in name.split(",")]
+        if len(parts) == 2:
+            name = f"{parts[1]} {parts[0]}"
+
+    return re.sub(r"\s+", " ", name).strip()
+
+
+def normalize_names(raw_name):
+    names = split_names(raw_name)
+    clean = set()
+
+    for name in names:
+        canon = canonicalize_name(name)
+        if canon and len(canon) > 1:
+            clean.add(canon)
+
+    return sorted(clean)
+
+
+# ================================
+# 🎯 DETECTORS
+# ================================
+def detect_mix_type(title):
+    t = title.lower()
+
+    if "dub" in t:
+        return "Dub"
+    if "instrumental" in t:
+        return "Instrumental"
+    if "radio" in t:
+        return "Radio Edit"
+    if "club" in t:
+        return "Club Mix"
+    if "extended" in t:
+        return "Extended Mix"
+    if "edit" in t:
+        return "Edit"
+    if "remix" in t:
+        return "Remix"
+
+    return ""
+
+
+def extract_remixers(track, release_data):
+    remixers = set()
+
+    for artist in track.get("extraartists", []):
+        if "remix" in artist.get("role", "").lower():
+            for n in normalize_names(artist.get("name", "")):
+                remixers.add(n)
+
+    for artist in release_data.get("extraartists", []):
+        if "remix" in artist.get("role", "").lower():
+            for n in normalize_names(artist.get("name", "")):
+                remixers.add(n)
+
+    matches = re.findall(r"\((.*?)\)", track.get("title", ""))
+
+    for match in matches:
+        if any(x in match.lower() for x in ["mix", "remix", "edit", "dub"]):
+            cleaned = re.sub(r"\b(mix|remix|edit|version|dub)\b", "", match, flags=re.IGNORECASE)
+            for n in normalize_names(cleaned):
+                remixers.add(n)
+
+    return ", ".join(sorted(remixers))
+
+
+def extract_producers(track, release_data):
+    producers = set()
+
+    for artist in track.get("extraartists", []):
+        if "produc" in artist.get("role", "").lower():
+            for n in normalize_names(artist.get("name", "")):
+                producers.add(n)
+
+    for artist in release_data.get("extraartists", []):
+        if "produc" in artist.get("role", "").lower():
+            for n in normalize_names(artist.get("name", "")):
+                producers.add(n)
+
+    return ", ".join(sorted(producers))
+
+
 def is_vinyl_format(formats):
     for fmt in formats:
-        name = fmt.get("name", "").lower()
-        descriptions = [d.lower() for d in fmt.get("descriptions", [])]
-
-        combined = " ".join([name] + descriptions)
-
-        if any(x in combined for x in [
-            "vinyl",
-            '12"', "12”",
-            "lp",
-            "ep",
-            "single",
-            "maxi-single"
-        ]):
+        combined = " ".join([fmt.get("name", "")] + fmt.get("descriptions", [])).lower()
+        if any(x in combined for x in ["vinyl", '12"', "lp", "ep", "single"]):
             return True
-
     return False
 
 
-# ================================
-# 🎯 TRACK STRUCTURE FILTER
-# ================================
 def looks_like_vinyl_track(position):
     if not position:
         return False
-
-    pos = str(position).strip().upper()
-
-    return (
-        pos.startswith(("A", "B", "C", "D")) or
-        pos in ["A", "B"]
-    )
+    pos = str(position).upper()
+    return pos.startswith(("A", "B", "C", "D")) or pos in ["A", "B"]
 
 
 # ================================
-# 🎵 FETCH TRACKS
+# 🌐 FETCH
 # ================================
-def fetch_release_tracks(release_id):
+def fetch_release_data(release_id):
+    if release_id in release_cache:
+        return release_cache[release_id]
+
     url = f"https://api.discogs.com/releases/{release_id}"
 
-    response = requests.get(
-        url,
-        headers=HEADERS,
-        params={"token": DISCOGS_TOKEN}
-    )
-
+    r = requests.get(url, headers=HEADERS, params={"token": DISCOGS_TOKEN})
     time.sleep(0.5)
 
-    if response.status_code != 200:
-        print(f"   ❌ Failed to fetch release {release_id}")
-        return []
+    if r.status_code != 200:
+        return None
 
-    data = response.json()
-    results = []
-
-    valid_tracks = 0
-
-    for track in data.get("tracklist", []):
-        title = track.get("title", "").strip()
-        position = track.get("position", "")
-
-        if not title or title.lower() == "none":
-            continue
-
-        if looks_like_vinyl_track(position):
-            valid_tracks += 1
-
-        results.append({
-            "release_id": str(release_id),
-            "Track Title": title,
-            "Track Position": position,
-            "Duration": track.get("duration", ""),
-            "Producer": "",
-            "Remixer": "",
-            "Artist": ", ".join(a.get("name", "") for a in data.get("artists", [])),
-            "Album Title": data.get("title", ""),
-            "Label": ", ".join(l.get("name", "") for l in data.get("labels", [])),
-            "Catalog Number": ", ".join(l.get("catno", "") for l in data.get("labels", [])),
-            "Release Date": data.get("year", "")
-        })
-
-    # ✅ Require at least ONE vinyl-style track
-    if valid_tracks == 0:
-        return []
-
-    return results
+    data = r.json()
+    release_cache[release_id] = data
+    return data
 
 
-# ================================
-# 🌐 FETCH NEW RELEASES ONLY
-# ================================
-def fetch_new_discogs_releases(last_run):
+def fetch_new_releases(last_run):
     releases = []
     page = 1
 
     while True:
-        print(f"📄 Fetching page {page}...")
+        print(f"📄 Page {page}")
 
-        response = requests.get(
-            BASE_URL,
-            headers=HEADERS,
-            params={
-                "page": page,
-                "token": DISCOGS_TOKEN,
-                "sort": "added",
-                "sort_order": "desc"
-            }
-        )
+        r = requests.get(BASE_URL, headers=HEADERS, params={
+            "page": page,
+            "token": DISCOGS_TOKEN,
+            "sort": "added",
+            "sort_order": "desc"
+        })
 
         time.sleep(0.5)
-        response.raise_for_status()
-
-        data = response.json()
+        data = r.json()
 
         stop = False
 
         for item in data["releases"]:
-            info = item.get("basic_information", {})
-
-            release_id = str(info.get("id"))
-            title = info.get("title", "Unknown")
-            formats = info.get("formats", [])
-            date_added = item.get("date_added")
-
-            if not date_added:
+            added = item.get("date_added")
+            if not added:
                 continue
 
-            added_dt = datetime.fromisoformat(date_added.replace("Z", "+00:00"))
+            added_dt = datetime.fromisoformat(added.replace("Z", "+00:00"))
 
-            # 🛑 stop when older than last run
             if added_dt <= last_run:
                 stop = True
                 break
 
-            if not is_vinyl_format(formats):
-                print(f"   ⏭️ Skipping non-vinyl: {title} ({release_id})")
+            info = item["basic_information"]
+
+            if not is_vinyl_format(info.get("formats", [])):
                 continue
 
             releases.append({
-                "id": release_id,
-                "title": title
+                "id": str(info["id"]),
+                "title": info.get("title", "")
             })
 
         if stop or page >= data["pagination"]["pages"]:
@@ -187,8 +220,74 @@ def fetch_new_discogs_releases(last_run):
 
         page += 1
 
-    print(f"\n🆕 New vinyl releases found: {len(releases)}")
+    print(f"🆕 Found {len(releases)} new releases")
     return releases
+
+
+# ================================
+# 🎵 TRACK PARSE
+# ================================
+def build_rows(release_id):
+    data = fetch_release_data(release_id)
+    if not data:
+        return []
+
+    rows = []
+
+    for track in data.get("tracklist", []):
+        title = track.get("title", "").strip()
+        pos = track.get("position", "")
+
+        if not title or not looks_like_vinyl_track(pos):
+            continue
+
+        rows.append({
+            "release_id": release_id,
+            "Artist": ", ".join(a["name"] for a in data.get("artists", [])),
+            "Album Title": data.get("title", ""),
+            "Label": ", ".join(l["name"] for l in data.get("labels", [])),
+            "Catalog Number": ", ".join(l.get("catno", "") for l in data.get("labels", [])),
+            "Release Date": data.get("year", ""),
+            "Track Title": title,
+            "Track Position": pos,
+            "Duration": track.get("duration", ""),
+            "Producer": extract_producers(track, data),
+            "Remixer": extract_remixers(track, data),
+            "Mix Type": detect_mix_type(title)
+        })
+
+    return rows
+
+
+# ================================
+# 🔧 BACKFILL
+# ================================
+def backfill(df):
+    print("🔧 Backfilling missing fields...")
+
+    for i, row in df.iterrows():
+        if not (is_blank(row["Producer"]) or is_blank(row["Remixer"]) or is_blank(row["Mix Type"])):
+            continue
+
+        data = fetch_release_data(row["release_id"])
+        if not data:
+            continue
+
+        for track in data.get("tracklist", []):
+            if track.get("title", "").strip() == row["Track Title"]:
+
+                if is_blank(row["Producer"]):
+                    df.at[i, "Producer"] = extract_producers(track, data)
+
+                if is_blank(row["Remixer"]):
+                    df.at[i, "Remixer"] = extract_remixers(track, data)
+
+                if is_blank(row["Mix Type"]):
+                    df.at[i, "Mix Type"] = detect_mix_type(track.get("title", ""))
+
+                break
+
+    return df
 
 
 # ================================
@@ -198,62 +297,29 @@ def main():
     last_run = get_last_run_date()
     print(f"⏱️ Last run: {last_run}")
 
-    # Load CSV
     if os.path.exists(EXISTING_CSV_PATH):
         df = pd.read_csv(EXISTING_CSV_PATH, dtype={"release_id": str})
     else:
-        df = pd.DataFrame(columns=[
-            "release_id", "Artist", "Album Title", "Label", "Catalog Number",
-            "Release Date", "Track Title", "Track Position", "Duration", "Producer", "Remixer"
-        ])
+        df = pd.DataFrame()
 
-    existing_ids = set(df["release_id"].dropna())
+    existing_ids = set(df.get("release_id", []))
 
-    # Fetch new releases only
-    new_releases = fetch_new_discogs_releases(last_run)
+    new_releases = fetch_new_releases(last_run)
 
     new_rows = []
+    for r in new_releases:
+        if r["id"] not in existing_ids:
+            new_rows.extend(build_rows(r["id"]))
 
-    if new_releases:
-        print("\n🆕 Adding releases:")
-
-        for rel in new_releases:
-            if rel["id"] in existing_ids:
-                continue
-
-            print(f"   ➕ {rel['title']} ({rel['id']})")
-
-            tracks = fetch_release_tracks(rel["id"])
-
-            if tracks:
-                new_rows.extend(tracks)
-            else:
-                print(f"   ⚠️ Not valid vinyl structure — skipped")
-
-    else:
-        print("🆕 No new releases found.")
-
-    # Merge
     if new_rows:
         df = pd.concat([df, pd.DataFrame(new_rows)], ignore_index=True)
 
-    # Clean
-    df = df[
-        df["Track Title"].notna() &
-        (df["Track Title"].str.lower() != "none")
-    ]
+    df = backfill(df)
 
-    # Final
-    print("\n========== ✅ FINAL ==========")
-    print(f"🗂️ Total rows: {len(df)}")
-    print("================================\n")
-
-    # Save CSV
     df.to_csv(EXISTING_CSV_PATH, index=False)
-
-    # Save last run timestamp
     save_last_run_date()
-    print("💾 Updated last_run.txt")
+
+    print("✅ Done")
 
 
 if __name__ == "__main__":
